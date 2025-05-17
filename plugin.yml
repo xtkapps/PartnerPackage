@@ -1,0 +1,13 @@
+name: PartnerPackage-Build
+version: 1.0.0
+website: https://github.com/xtkapps/PartnerPackage
+main: xtkapps\Main
+api: 5.0.0
+
+commands:
+  pp:
+    description: Partner Package Commands of Use
+    permission: pp.command
+permissions:
+  pp.command:
+    default: op
