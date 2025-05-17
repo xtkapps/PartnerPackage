@@ -1,9 +1,10 @@
 <?php
-/**
- * Plugin created by xtkapps.
- * Using the PHP programming language
- * YouTube: @FastCr4cked
- * Date: 16/5/25 11:14 p. m.
+/*
+ * ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+ * ┃ Plugin created by xtkapps ┃
+ * ┃ YouTube: @FastCr4cked       ┃
+ * ┃ Date: 16/5/25 11:14 p.m.    ┃
+ * ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  */
 
 namespace xtkapps;
@@ -16,74 +17,83 @@ use pocketmine\command\CommandSender;
 use pocketmine\player\Player;
 use pocketmine\utils\Config;
 use pocketmine\item\Item;
+use pocketmine\item\VanillaItems;
 use pocketmine\block\VanillaBlocks;
-use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\utils\TextFormat;
-use pocketmine\world\sound\ExplodeSound;
-use pocketmine\world\particle\HugeExplodeSeedParticle;
+use pocketmine\world\sound\XpCollectSound;
 
 class Main extends PluginBase implements Listener {
 
     private Config $rewards;
 
     public function onEnable(): void {
-        $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        $this->saveDefaultConfig();
         @mkdir($this->getDataFolder());
         $this->rewards = new Config($this->getDataFolder() . "rewards.yml", Config::YAML);
+        $this->getServer()->getPluginManager()->registerEvents($this, $this);
+        $this->getLogger()->info("Any errors please report them to my discord: xtkapps");
     }
 
     public function onCommand(CommandSender $sender, Command $command, string $label, array $args): bool {
         if (!$sender instanceof Player) {
-            $sender->sendMessage("[Warning] This command can only be used within the game");
+            $sender->sendMessage(TextFormat::RED . "The plugin only works in-game, so don't be lazy when you get in");
             return true;
         }
 
-        if (!isset($args[0])) {
-            $sender->sendMessage("§l§dPP §r§7» §cThe commands are /pp <setcontent|get|all>");
+        if (empty($args)) {
+            $sender->sendMessage(TextFormat::RED . "Usage: /pp <setcontent|get|all>");
             return true;
         }
 
-        switch ($args[0]) {
+        switch (strtolower($args[0])) {
             case "setcontent":
-                $items = array_map(function(Item $item) {
-                    return base64_encode(serialize($item->nbtSerialize()));
-                }, $sender->getInventory()->getContents());
+                $items = [];
+                foreach ($sender->getInventory()->getContents() as $item) {
+                    $items[] = base64_encode(serialize($item->nbtSerialize()));
+                }
                 $this->rewards->set("items", $items);
                 $this->rewards->save();
-                $sender->sendMessage("§l§dPP §r§7» §aRewards saved.");
+                $sender->sendMessage(TextFormat::GREEN . "Rewards have been saved successfully");
                 break;
 
             case "get":
-                $amount = isset($args[1]) ? (int)$args[1] : 1;
-                $item = VanillaBlocks::ENDER_CHEST()->asItem();
-                $item->setCustomName("§r§k§r§dPartner Package§r§k§d§r");
-                $item->setCount($amount);
-                $item->getNamedTag()->setByte("ppackage", 1);
-                $sender->getInventory()->addItem($item);
-                $sender->sendMessage("§l§dPP §r§7» §aYou just received $amount Partner Package.");
+                $amount = isset($args[1]) && is_numeric($args[1]) ? (int)$args[1] : 1;
+                $package = VanillaBlocks::ENDER_CHEST()->asItem();
+                $package->setCustomName(TextFormat::DARK_PURPLE . "Partner Package");
+                $package->setCount($amount);
+                $package->getNamedTag()->setByte("ppackage", 1);
+                if (!$sender->getInventory()->canAddItem($package)) {
+                    $sender->sendMessage(TextFormat::RED . "You don't have enough space in your inventory");
+                    return true;
+                }
+                $sender->getInventory()->addItem($package);
+                $sender->sendMessage(TextFormat::GREEN . "You received $amount Partner Package");
                 break;
 
             case "all":
                 if (!isset($args[1]) || !is_numeric($args[1])) {
-                    $sender->sendMessage("§l§dPP §r§7»§c It's done like this: /pp all <cantidad>");
+                    $sender->sendMessage(TextFormat::RED . "Usage: /pp all <amount>");
                     return true;
                 }
-
-                $count = (int)$args[1];
-                $item = VanillaBlocks::ENDER_CHEST()->asItem();
-                $item->setCustomName("§r§k§r§dPartner Package§r§k§d§r");
-                $item->setCount($count);
-                $item->getNamedTag()->setByte("ppackage", 1);
+                $amount = (int)$args[1];
+                $package = VanillaBlocks::ENDER_CHEST()->asItem();
+                $package->setCustomName(TextFormat::DARK_PURPLE . "Partner Package");
+                $package->setCount($amount);
+                $package->getNamedTag()->setByte("ppackage", 1);
 
                 foreach ($this->getServer()->getOnlinePlayers() as $player) {
-                    $player->getInventory()->addItem(clone $item);
+                    if ($player->getInventory()->canAddItem($package)) {
+                        $player->getInventory()->addItem(clone $package);
+                        $player->sendMessage(TextFormat::GREEN . "You received $amount Partner Package");
+                    } else {
+                        $player->sendMessage(TextFormat::RED . "You have no space for the Partner Package");
+                    }
                 }
-
-                $sender->sendMessage("§l§dPP §r§7» §aYou gave it to everyone $count Partner Package.");
+                $sender->sendMessage(TextFormat::GREEN . "All online players received $amount Partner Package");
                 break;
 
             default:
-                $sender->sendMessage("§l§dPP §r§7» §cunknown command");
+                $sender->sendMessage(TextFormat::RED . "Unknown subcommand! Use: /pp <setcontent|get|all>");
                 break;
         }
 
@@ -98,25 +108,39 @@ class Main extends PluginBase implements Listener {
             return;
         }
 
-        $stored = $this->rewards->get("items", []);
-        if (empty($stored)) {
-            $player->sendMessage("§cThere are no rewards set.");
+        $event->cancel();
+
+        $storedItems = $this->rewards->get("items", []);
+        if (empty($storedItems)) {
+            $player->sendMessage(TextFormat::RED . "No rewards have been set yet");
             return;
         }
 
-        $reward = Item::nbtDeserialize(unserialize(base64_decode($stored[array_rand($stored)])));
+        $randomEncodedItem = $storedItems[array_rand($storedItems)];
+        $reward = Item::nbtDeserialize(unserialize(base64_decode($randomEncodedItem)));
 
         if (!$player->getInventory()->canAddItem($reward)) {
-            $player->sendMessage(TextFormat::colorize("&cYOU HAVE A FULL INVENTORY!"));
+            $player->sendMessage(TextFormat::RED . "Your inventory is full!");
             return;
         }
 
-        $item->pop();
-        $player->getInventory()->setItemInHand($item);
-        $player->getWorld()->addSound($player->getPosition(), new ExplodeSound());
-        $player->getWorld()->addParticle($player->getPosition(), new HugeExplodeSeedParticle());
-        $player->getInventory()->addItem($reward);
-        $player->sendMessage(TextFormat::colorize("    §l§dPartnerPackage"));
-        $player->sendMessage(TextFormat::colorize("&7-» &fyou have won &e" . ($reward->hasCustomName() ? $reward->getCustomName() : $reward->getName())));
+        $inventory = $player->getInventory();
+        $slot = $inventory->getHeldItemIndex();
+        $current = $inventory->getItem($slot);
+
+        if ($current->getCount() > 1) {
+            $current->setCount($current->getCount() - 1);
+            $inventory->setItem($slot, $current);
+        } else {
+            $inventory->setItem($slot, VanillaItems::AIR());
+        }
+
+        $pos = $player->getPosition();
+        $player->getWorld()->addSound($pos, new XpCollectSound());
+
+        $inventory->addItem($reward);
+
+        $rewardName = $reward->hasCustomName() ? $reward->getCustomName() : $reward->getName();
+        $player->sendMessage(TextFormat::GRAY . "You received a " . TextFormat::YELLOW . $rewardName);
     }
 }
