@@ -60,7 +60,7 @@ class Main extends PluginBase implements Listener {
                 $item->setCount($amount);
                 $item->getNamedTag()->setByte("ppackage", 1);
                 $sender->getInventory()->addItem($item);
-                $sender->sendMessage("§l§dPP §r§7» §aYou just received $amount Partner Package(s).");
+                $sender->sendMessage("§l§dPP §r§7» §aYou just received $amount Partner Package.");
                 break;
 
             case "all":
